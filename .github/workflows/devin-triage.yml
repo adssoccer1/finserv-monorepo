@@ -1,0 +1,47 @@
+name: Devin Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Devin triage session
+        env:
+          DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
+          DEVIN_ORG_ID: ${{ secrets.DEVIN_ORG_ID }}
+        run: |
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_BODY=$(cat << 'EOF'
+          ${{ github.event.issue.body }}
+          EOF
+          )
+          REPO="${{ github.repository }}"
+
+          PROMPT="You are triaging a GitHub issue in the $REPO repository.
+
+          Issue #$ISSUE_NUMBER: $ISSUE_TITLE
+
+          Issue description:
+          ${{ github.event.issue.body }}
+
+          Please:
+          1. Investigate the relevant code in the repository
+          2. Identify the root cause
+          3. Determine the complexity (S/M/L) and estimated effort
+          4. Fix the issue if it is clearly scoped and safe to do so autonomously
+          5. If the issue is ambiguous or too large, post a comment on the issue asking for clarification before proceeding
+
+          Repository: https://github.com/$REPO
+          Issue URL: ${{ github.event.issue.html_url }}"
+
+          curl -s -X POST \
+            "https://api.devin.ai/v3/organizations/${DEVIN_ORG_ID}/sessions" \
+            -H "Authorization: Bearer ${DEVIN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg prompt "$PROMPT" \
+              '{prompt: $prompt}')"
