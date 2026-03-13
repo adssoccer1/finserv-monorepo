@@ -11,19 +11,12 @@ jobs:
       - name: Start Devin triage session
         env:
           DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
-          DEVIN_ORG_ID: ${{ secrets.DEVIN_ORG_ID }}
         run: |
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE="${{ github.event.issue.title }}"
-          ISSUE_BODY=$(cat << 'EOF'
-          ${{ github.event.issue.body }}
-          EOF
-          )
           REPO="${{ github.repository }}"
 
           PROMPT="You are triaging a GitHub issue in the $REPO repository.
 
-          Issue #$ISSUE_NUMBER: $ISSUE_TITLE
+          Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
 
           Issue description:
           ${{ github.event.issue.body }}
@@ -39,7 +32,7 @@ jobs:
           Issue URL: ${{ github.event.issue.html_url }}"
 
           curl -s -X POST \
-            "https://api.devin.ai/v3/organizations/${DEVIN_ORG_ID}/sessions" \
+            "https://api.devin.ai/v1/sessions" \
             -H "Authorization: Bearer ${DEVIN_API_KEY}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
