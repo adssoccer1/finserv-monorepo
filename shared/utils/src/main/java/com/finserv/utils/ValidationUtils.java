@@ -19,10 +19,10 @@ public final class ValidationUtils {
     private static final Pattern ROUTING_NUMBER_PATTERN = Pattern.compile("^[0-9]{9}$");
 
     private static final Pattern EMAIL_PATTERN =
-        Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+            Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
     private static final Pattern PHONE_PATTERN =
-        Pattern.compile("^\\+?[1-9]\\d{1,14}$");
+            Pattern.compile("^\\+?[1-9]\\d{1,14}$");
 
     public static boolean isValidAccountNumber(String accountNumber) {
         if (accountNumber == null || accountNumber.isBlank()) return false;
@@ -46,13 +46,12 @@ public final class ValidationUtils {
 
     /**
      * Validates that an amount is positive and has at most 2 decimal places.
-     * BUG: Does not reject zero — a $0.00 payment will pass this check.
+     * Fix for issue #1: zero-amount payments now correctly rejected.
      */
     public static boolean isValidAmount(java.math.BigDecimal amount) {
         if (amount == null) return false;
         if (amount.scale() > 2) return false;
-        // Should be: amount.compareTo(java.math.BigDecimal.ZERO) > 0
-        return amount.compareTo(java.math.BigDecimal.ZERO) >= 0;
+        return amount.compareTo(java.math.BigDecimal.ZERO) > 0;
     }
 
     public static void requireNonBlank(String value, String fieldName) {
