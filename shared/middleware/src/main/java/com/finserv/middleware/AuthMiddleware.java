@@ -12,8 +12,13 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Set;
+import java.util.Collections;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.security.Keys;
 
 /**
  * Validates Bearer tokens on all protected routes.
@@ -33,6 +38,7 @@ public class AuthMiddleware extends OncePerRequestFilter {
     private String jwtSecret;
 
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final Set<String> ALLOWED_ALGORITHMS = Collections.singleton("HS256");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -54,14 +60,19 @@ public class AuthMiddleware extends OncePerRequestFilter {
         String token = authHeader.substring(BEARER_PREFIX.length());
 
         try {
-            // BUG: parserBuilder() without explicit algorithm enforcement
-            // allows alg=none attack in older JJWT versions
-            Claims claims = Jwts.parserBuilder()
-                .setSigningKey(Base64.getDecoder().decode(jwtSecret))
+            SecretKey key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret));
+            Jws<Claims> jws = Jwts.parserBuilder()
+                .setSigningKey(key)
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseClaimsJws(token);
 
+            String algorithm = jws.getHeader().getAlgorithm();
+            if (!ALLOWED_ALGORITHMS.contains(algorithm)) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, ErrorCodes.AUTH_TOKEN_INVALID);
+                return;
+            }
+
+            Claims claims = jws.getBody();
             request.setAttribute("userId",   claims.getSubject());
             request.setAttribute("userRole", claims.get("role", String.class));
             filterChain.doFilter(request, response);
