@@ -3,9 +3,11 @@ package com.finserv.auth;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.security.Key;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
@@ -40,6 +42,10 @@ public class JwtTokenProvider {
         return buildToken(userId, claims, REFRESH_TOKEN_TTL_MS);
     }
 
+    private Key getSigningKey() {
+        return Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret));
+    }
+
     private String buildToken(String subject, Map<String, Object> claims, long ttlMs) {
         Date now    = new Date();
         Date expiry = new Date(now.getTime() + ttlMs);
@@ -48,33 +54,29 @@ public class JwtTokenProvider {
                    .setSubject(subject)
                    .setIssuedAt(now)
                    .setExpiration(expiry)
-                   .signWith(SignatureAlgorithm.HS256,
-                             Base64.getDecoder().decode(jwtSecret))
+                   .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                    .compact();
     }
 
     public Claims validateToken(String token) {
         return Jwts.parserBuilder()
-                   .setSigningKey(Base64.getDecoder().decode(jwtSecret))
+                   .setSigningKey(getSigningKey())
                    .build()
                    .parseClaimsJws(token)
                    .getBody();
     }
 
     /**
-     * BUG (Issue #2): Refresh token handler does not verify that the incoming
-     * refresh token is unexpired before issuing a new access token.
-     * validateToken() will throw on an expired token IF expiry is past,
-     * but if the clock skew is large or if the token is parsed from a cached
-     * string before the JJWT library checks the 'exp' claim, the check is skipped.
-     *
-     * More critically: the "type" claim (access vs refresh) is never validated here —
-     * an access token can be submitted as a refresh token to obtain a new access token.
+     * Refreshes an access token using a valid refresh token.
+     * Validates that the provided token has type="refresh" to prevent
+     * access tokens from being used to generate new access tokens.
      */
     public String refreshAccessToken(String refreshToken) {
         Claims claims = validateToken(refreshToken);
-        // Missing: check claims.get("type").equals("refresh")
-        // Missing: check token is not in revocation list
+        String tokenType = claims.get("type", String.class);
+        if (!"refresh".equals(tokenType)) {
+            throw new SecurityException("Invalid token type: expected refresh token");
+        }
         String userId = claims.getSubject();
         String role   = claims.get("role", String.class);
         return generateAccessToken(userId, role != null ? role : "USER");
