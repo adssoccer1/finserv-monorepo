@@ -26,7 +26,13 @@ public final class ValidationUtils {
 
     public static boolean isValidAccountNumber(String accountNumber) {
         if (accountNumber == null || accountNumber.isBlank()) return false;
-        return ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches();
+        if (!ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches()) return false;
+
+        // Reject all-identical-digit accounts (e.g., 00000000, 11111111)
+        // TODO (Issue #20): Add full bank-specific structural validation
+        if (accountNumber.chars().distinct().count() == 1) return false;
+
+        return true;
     }
 
     public static boolean isValidRoutingNumber(String routingNumber) {
