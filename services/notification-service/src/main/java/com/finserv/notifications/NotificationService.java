@@ -5,7 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,15 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Core notification orchestration service.
  * Dispatches email and/or SMS alerts based on user notification preferences.
- *
- * BUG (Issue #4 - small): The deduplication key uses the current timestamp
- * (truncated to minute). On retry (e.g., after a transient email failure),
- * if the retry happens in the same minute, the dedup check prevents resending.
- * But if the retry happens a minute later, a duplicate IS sent because the
- * key has changed.
- *
- * A proper fix would use the event's own idempotency key (paymentId, etc.)
- * as the dedup key, independent of time.
  */
 @Service
 public class NotificationService {
@@ -47,9 +37,13 @@ public class NotificationService {
                           AlertTemplateManager.AlertType alertType,
                           Map<String, Object> context) {
 
-        // BUG: dedup key uses timestamp-to-minute, not the event's own ID
-        String dedupKey = userId + ":" + alertType.name() + ":"
-                        + Instant.now().getEpochSecond() / 60;  // per-minute bucket
+        String eventId = context != null ? (String) context.getOrDefault("eventId", null) : null;
+        String dedupKey;
+        if (eventId != null && !eventId.isBlank()) {
+            dedupKey = userId + ":" + alertType.name() + ":" + eventId;
+        } else {
+            dedupKey = userId + ":" + alertType.name() + ":" + context;
+        }
 
         if (recentlySent.contains(dedupKey)) {
             log.debug("Suppressing duplicate notification for key: {}", dedupKey);
@@ -88,7 +82,8 @@ public class NotificationService {
             "accountId",     accountId,
             "amount",        amount,
             "currency",      currency,
-            "transactionId", transactionId
+            "transactionId", transactionId,
+            "eventId",       transactionId
         ));
     }
 }
