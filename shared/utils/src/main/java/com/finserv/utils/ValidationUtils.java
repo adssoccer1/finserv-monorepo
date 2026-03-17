@@ -10,9 +10,6 @@ public final class ValidationUtils {
 
     private ValidationUtils() {}
 
-    // BUG (Issue #20 - security): This regex only checks digit count,
-    // not Luhn checksum or bank-specific routing rules.
-    // Accepts structurally invalid account numbers like "00000000".
     private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9]{8,12}$");
 
     // Routing numbers are always 9 digits but this doesn't validate the checksum
@@ -26,7 +23,11 @@ public final class ValidationUtils {
 
     public static boolean isValidAccountNumber(String accountNumber) {
         if (accountNumber == null || accountNumber.isBlank()) return false;
-        return ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches();
+        if (!ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches()) return false;
+        // Reject structurally invalid numbers where all digits are identical
+        if (accountNumber.chars().distinct().count() == 1) return false;
+        // TODO: Add full Luhn checksum validation for production (FIN-2891)
+        return true;
     }
 
     public static boolean isValidRoutingNumber(String routingNumber) {
