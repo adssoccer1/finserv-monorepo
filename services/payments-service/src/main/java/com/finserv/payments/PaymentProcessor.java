@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Core payment processing engine.
@@ -31,12 +33,24 @@ public class PaymentProcessor {
     private final PaymentValidator  validator;
     private final PaymentRepository repository;
 
+    // Stores idempotency key -> previous result for duplicate detection
+    private final Map<String, PaymentResult> idempotencyStore = new ConcurrentHashMap<>();
+
     public PaymentProcessor(PaymentValidator validator, PaymentRepository repository) {
         this.validator  = validator;
         this.repository = repository;
     }
 
     public PaymentResult process(PaymentRequest request) {
+        // Step 0: check idempotency key for duplicate submissions
+        if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
+            PaymentResult existing = idempotencyStore.get(request.idempotencyKey());
+            if (existing != null) {
+                log.info("Returning cached result for idempotency key: {}", request.idempotencyKey());
+                return existing;
+            }
+        }
+
         // Step 1: validate
         List<String> errors = validator.validate(request);
         if (!errors.isEmpty()) {
@@ -88,7 +102,14 @@ public class PaymentProcessor {
             request.amount(), request.currency(),
             request.sourceAccountId(), request.destinationAccountId());
 
-        return PaymentResult.success(paymentId, request.amount(), request.currency());
+        PaymentResult result = PaymentResult.success(paymentId, request.amount(), request.currency());
+
+        // Store result for idempotency key lookups
+        if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
+            idempotencyStore.put(request.idempotencyKey(), result);
+        }
+
+        return result;
     }
 
     private PaymentRepository.PaymentRecord toPending(

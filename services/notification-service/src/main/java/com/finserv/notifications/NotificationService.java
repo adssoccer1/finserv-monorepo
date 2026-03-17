@@ -61,8 +61,11 @@ public class NotificationService {
         String body    = templateManager.buildBody(alertType, context);
 
         if (email != null && ValidationUtils.isValidEmail(email)) {
-            // BUG (Issue #13): return value not checked — silent failure
-            emailProvider.send(email, subject, body);
+            boolean emailSent = emailProvider.send(email, subject, body);
+            if (!emailSent) {
+                log.warn("Email delivery failed for userId={}, alertType={}, recipient={}",
+                         userId, alertType, email);
+            }
         }
 
         if (phoneNumber != null && ValidationUtils.isValidPhoneNumber(phoneNumber)) {

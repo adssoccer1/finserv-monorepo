@@ -14,16 +14,12 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 
 /**
  * Logs all inbound API requests and outbound responses for audit and debugging.
- *
- * SECURITY BUG (Issue #1): Request body is logged verbatim, including
- * sensitive fields like cardNumber, accountNumber, and rawPassword.
- * PCI-DSS requires these fields to be masked before logging.
- *
- * Introduced in commit a3f8b21 ("add request logging for prod debugging"), 2022-11-03.
- * See also: FIN-3341 (PCI audit finding, high severity)
+ * Sensitive fields (card numbers, account numbers, passwords) are masked before logging
+ * per PCI-DSS Requirement 3.3.
  */
 @Component
 @Order(1)
@@ -49,12 +45,12 @@ public class LoggingMiddleware extends OncePerRequestFilter {
             String requestBody = new String(
                 wrappedRequest.getContentAsByteArray(), StandardCharsets.UTF_8);
 
-            // BUG: logs full request body — cardNumber, accountNumber, etc. are NOT masked
+            String maskedBody = maskSensitiveFields(requestBody);
             log.info("[{}] {} {} | body={} | status={} | {}ms",
                      getRequestId(request),
                      request.getMethod(),
                      request.getRequestURI(),
-                     requestBody,                   // <-- PCI violation: raw body logged
+                     maskedBody,
                      wrappedResponse.getStatus(),
                      duration);
 
@@ -65,5 +61,28 @@ public class LoggingMiddleware extends OncePerRequestFilter {
     private String getRequestId(HttpServletRequest request) {
         String id = request.getHeader("X-Request-Id");
         return id != null ? id : "no-req-id";
+    }
+
+    // Patterns to match sensitive JSON fields and mask their values
+    private static final Pattern CARD_NUMBER_PATTERN =
+        Pattern.compile("(\"cardNumber\"\\s*:\\s*\")([^\"]+)(\")", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ACCOUNT_PATTERN =
+        Pattern.compile("(\"(?:accountNumber|sourceAccountId|destinationAccountId)\"\\s*:\\s*\")([^\"]+)(\")", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PASSWORD_PATTERN =
+        Pattern.compile("(\"(?:password|rawPassword|currentPassword|newPassword)\"\\s*:\\s*\")([^\"]+)(\")", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TOKEN_PATTERN =
+        Pattern.compile("(\"(?:accessToken|refreshToken|token)\"\\s*:\\s*\")([^\"]+)(\")", Pattern.CASE_INSENSITIVE);
+
+    static String maskSensitiveFields(String body) {
+        if (body == null || body.isBlank()) return body;
+        String masked = CARD_NUMBER_PATTERN.matcher(body).replaceAll("$1****-****-****-XXXX$3");
+        masked = ACCOUNT_PATTERN.matcher(masked).replaceAll(mr -> {
+            String val = mr.group(2);
+            String suffix = val.length() >= 4 ? val.substring(val.length() - 4) : val;
+            return mr.group(1) + "***" + suffix + mr.group(3);
+        });
+        masked = PASSWORD_PATTERN.matcher(masked).replaceAll("$1[REDACTED]$3");
+        masked = TOKEN_PATTERN.matcher(masked).replaceAll("$1[REDACTED]$3");
+        return masked;
     }
 }

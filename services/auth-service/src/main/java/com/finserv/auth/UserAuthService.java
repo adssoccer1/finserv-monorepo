@@ -62,9 +62,8 @@ public class UserAuthService {
     }
 
     /**
-     * BUG (Issue #6): Password change does NOT call sessionManager.invalidateAllSessions().
-     * Existing sessions remain valid after a password change, allowing a compromised
-     * session to continue operating even after the user resets their credentials.
+     * Changes the user's password and invalidates all existing sessions,
+     * forcing re-authentication on all devices.
      */
     public void changePassword(String userId, String currentPassword, String newPassword) {
         UserRecord user = userStore.get(userId);
@@ -75,8 +74,8 @@ public class UserAuthService {
         String newHash = encoder.encode(newPassword);
         userStore.put(userId, new UserRecord(user.userId(), user.email(),
                                              newHash, user.role(), 0, false));
-        // BUG: sessionManager.invalidateAllSessions(userId) should be called here
-        log.info("Password changed for user {}", userId);
+        sessionManager.invalidateAllSessions(userId);
+        log.info("Password changed for user {} — all sessions invalidated", userId);
     }
 
     private void recordFailedAttempt(String userId) {
