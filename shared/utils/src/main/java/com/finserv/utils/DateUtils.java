@@ -22,14 +22,11 @@ public final class DateUtils {
     public static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern(ISO_DATE_FORMAT);
 
     /**
-     * BUG (Issue #3): Uses system default timezone instead of UTC.
-     * On servers running in US/Eastern, this returns yesterday's date
-     * after 7 PM ET for UTC timestamps — causing transactions to be
-     * bucketed into the wrong reporting day.
+     * Converts a legacy Date to a LocalDate in UTC.
      */
     public static LocalDate toLocalDate(Date date) {
         return date.toInstant()
-                   .atZone(ZoneId.systemDefault())   // should be ZoneId.of("UTC")
+                   .atZone(ZoneId.of("UTC"))
                    .toLocalDate();
     }
 
