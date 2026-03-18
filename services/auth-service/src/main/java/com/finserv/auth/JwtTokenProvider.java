@@ -62,19 +62,15 @@ public class JwtTokenProvider {
     }
 
     /**
-     * BUG (Issue #2): Refresh token handler does not verify that the incoming
-     * refresh token is unexpired before issuing a new access token.
-     * validateToken() will throw on an expired token IF expiry is past,
-     * but if the clock skew is large or if the token is parsed from a cached
-     * string before the JJWT library checks the 'exp' claim, the check is skipped.
-     *
-     * More critically: the "type" claim (access vs refresh) is never validated here —
-     * an access token can be submitted as a refresh token to obtain a new access token.
+     * Validates that the provided token is a refresh token, then issues a new access token.
+     * Rejects access tokens submitted as refresh tokens.
      */
     public String refreshAccessToken(String refreshToken) {
         Claims claims = validateToken(refreshToken);
-        // Missing: check claims.get("type").equals("refresh")
-        // Missing: check token is not in revocation list
+        String tokenType = claims.get("type", String.class);
+        if (!"refresh".equals(tokenType)) {
+            throw new SecurityException("Token is not a refresh token");
+        }
         String userId = claims.getSubject();
         String role   = claims.get("role", String.class);
         return generateAccessToken(userId, role != null ? role : "USER");
