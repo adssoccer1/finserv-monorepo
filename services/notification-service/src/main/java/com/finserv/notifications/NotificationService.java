@@ -5,7 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,9 +46,8 @@ public class NotificationService {
                           AlertTemplateManager.AlertType alertType,
                           Map<String, Object> context) {
 
-        // BUG: dedup key uses timestamp-to-minute, not the event's own ID
-        String dedupKey = userId + ":" + alertType.name() + ":"
-                        + Instant.now().getEpochSecond() / 60;  // per-minute bucket
+        String eventId = context.getOrDefault("transactionId", context.getOrDefault("eventId", "")).toString();
+        String dedupKey = userId + ":" + alertType.name() + ":" + eventId;
 
         if (recentlySent.contains(dedupKey)) {
             log.debug("Suppressing duplicate notification for key: {}", dedupKey);
