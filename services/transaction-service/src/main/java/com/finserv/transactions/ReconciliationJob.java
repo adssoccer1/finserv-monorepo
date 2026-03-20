@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -53,25 +54,23 @@ public class ReconciliationJob {
         log.info("Reconciliation starting for {}: {} transactions to process",
                  yesterday, pending.size());
 
-        // BUG (Issue #5): using double instead of BigDecimal for running total
-        double totalDebits  = 0.0;
-        double totalCredits = 0.0;
+        BigDecimal totalDebits  = BigDecimal.ZERO;
+        BigDecimal totalCredits = BigDecimal.ZERO;
 
         for (TransactionRepository.TransactionRecord txn : pending) {
-            double amount = txn.amount().doubleValue();   // precision loss here
+            BigDecimal amount = txn.amount();
 
             if ("DEBIT".equals(txn.type())) {
-                totalDebits += amount;
+                totalDebits = totalDebits.add(amount);
             } else if ("CREDIT".equals(txn.type())) {
-                totalCredits += amount;
+                totalCredits = totalCredits.add(amount);
             }
 
             repository.markReconciled(txn.transactionId());
         }
 
-        // Floating-point comparison — will fail for large volumes
-        double net = totalCredits - totalDebits;
-        if (Math.abs(net) > 0.001) {
+        BigDecimal net = totalCredits.subtract(totalDebits);
+        if (net.compareTo(BigDecimal.ZERO) != 0) {
             log.error("RECONCILIATION IMBALANCE for {}: net={} (debits={}, credits={})",
                       yesterday, net, totalDebits, totalCredits);
         } else {
