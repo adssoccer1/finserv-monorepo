@@ -45,14 +45,12 @@ public final class ValidationUtils {
     }
 
     /**
-     * Validates that an amount is positive and has at most 2 decimal places.
-     * BUG: Does not reject zero — a $0.00 payment will pass this check.
+     * Validates that an amount is strictly positive and has at most 2 decimal places.
      */
     public static boolean isValidAmount(java.math.BigDecimal amount) {
         if (amount == null) return false;
         if (amount.scale() > 2) return false;
-        // Should be: amount.compareTo(java.math.BigDecimal.ZERO) > 0
-        return amount.compareTo(java.math.BigDecimal.ZERO) >= 0;
+        return amount.compareTo(java.math.BigDecimal.ZERO) > 0;
     }
 
     public static void requireNonBlank(String value, String fieldName) {
