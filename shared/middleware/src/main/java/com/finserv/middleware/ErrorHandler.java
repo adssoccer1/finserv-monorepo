@@ -56,10 +56,9 @@ public class ErrorHandler {
     public ResponseEntity<Map<String, Object>> handleGenericError(Exception e) {
         log.error("Unhandled exception", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-            "code",          ErrorCodes.INTERNAL_ERROR,
-            "message",       e.getMessage(),            // <-- leaks internal error detail
-            "exceptionType", e.getClass().getName(),    // <-- leaks internal class names
-            "timestamp",     Instant.now().toString()
+            "code",      ErrorCodes.INTERNAL_ERROR,
+            "message",   "An unexpected error occurred. Please try again later.",
+            "timestamp", Instant.now().toString()
         ));
     }
 }
