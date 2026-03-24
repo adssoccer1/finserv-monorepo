@@ -60,17 +60,32 @@ public class NotificationService {
         String subject = templateManager.buildSubject(alertType, (String) context.get("accountId"));
         String body    = templateManager.buildBody(alertType, context);
 
+        boolean emailSent = false;
+        boolean smsSent = false;
+
         if (email != null && ValidationUtils.isValidEmail(email)) {
-            // BUG (Issue #13): return value not checked — silent failure
-            emailProvider.send(email, subject, body);
+            emailSent = emailProvider.send(email, subject, body);
+            if (!emailSent) {
+                log.error("Email delivery failed: userId={}, type={}, recipient={}",
+                          userId, alertType, email);
+            }
         }
 
         if (phoneNumber != null && ValidationUtils.isValidPhoneNumber(phoneNumber)) {
             String smsBody = body.length() > 160 ? body.substring(0, 157) + "..." : body;
-            smsProvider.send(phoneNumber, smsBody);
+            smsSent = smsProvider.send(phoneNumber, smsBody);
+            if (!smsSent) {
+                log.error("SMS delivery failed: userId={}, type={}, recipient={}",
+                          userId, alertType, phoneNumber);
+            }
         }
 
-        log.info("Alert sent: userId={}, type={}", userId, alertType);
+        if (!emailSent && !smsSent) {
+            log.error("All notification channels failed: userId={}, type={}", userId, alertType);
+        } else {
+            log.info("Alert sent: userId={}, type={}, email={}, sms={}",
+                     userId, alertType, emailSent, smsSent);
+        }
     }
 
     /**
