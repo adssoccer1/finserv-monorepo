@@ -14,22 +14,33 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Logs all inbound API requests and outbound responses for audit and debugging.
- *
- * SECURITY BUG (Issue #1): Request body is logged verbatim, including
- * sensitive fields like cardNumber, accountNumber, and rawPassword.
- * PCI-DSS requires these fields to be masked before logging.
- *
- * Introduced in commit a3f8b21 ("add request logging for prod debugging"), 2022-11-03.
- * See also: FIN-3341 (PCI audit finding, high severity)
+ * Sensitive fields (card numbers, account numbers, passwords, tokens) are masked
+ * before logging to comply with PCI-DSS requirements.
  */
 @Component
 @Order(1)
 public class LoggingMiddleware extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(LoggingMiddleware.class);
+
+    private static final Set<String> SENSITIVE_FIELD_NAMES = Set.of(
+        "cardNumber", "card_number", "cardnumber",
+        "accountNumber", "account_number", "accountnumber",
+        "password", "rawPassword", "newPassword", "currentPassword",
+        "token", "accessToken", "refreshToken", "access_token", "refresh_token",
+        "ssn", "socialSecurityNumber",
+        "routingNumber", "routing_number",
+        "cvv", "cvc", "securityCode"
+    );
+
+    private static final Pattern JSON_FIELD_PATTERN = Pattern.compile(
+        "\"(" + String.join("|", SENSITIVE_FIELD_NAMES) + ")\"\\s*:\\s*\"([^\"]*)\""
+    );
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -49,17 +60,37 @@ public class LoggingMiddleware extends OncePerRequestFilter {
             String requestBody = new String(
                 wrappedRequest.getContentAsByteArray(), StandardCharsets.UTF_8);
 
-            // BUG: logs full request body — cardNumber, accountNumber, etc. are NOT masked
+            String maskedBody = maskSensitiveFields(requestBody);
+
             log.info("[{}] {} {} | body={} | status={} | {}ms",
                      getRequestId(request),
                      request.getMethod(),
                      request.getRequestURI(),
-                     requestBody,                   // <-- PCI violation: raw body logged
+                     maskedBody,
                      wrappedResponse.getStatus(),
                      duration);
 
             wrappedResponse.copyBodyToResponse();
         }
+    }
+
+    static String maskSensitiveFields(String body) {
+        if (body == null || body.isBlank()) {
+            return body;
+        }
+        return JSON_FIELD_PATTERN.matcher(body).replaceAll(mr -> {
+            String fieldName = mr.group(1);
+            String value = mr.group(2);
+            String masked = maskValue(value);
+            return "\"" + fieldName + "\":\"" + masked + "\"";
+        });
+    }
+
+    private static String maskValue(String value) {
+        if (value == null || value.length() <= 4) {
+            return "***";
+        }
+        return "***" + value.substring(value.length() - 4);
     }
 
     private String getRequestId(HttpServletRequest request) {
