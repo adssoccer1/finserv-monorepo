@@ -40,9 +40,7 @@ public class ReconciliationJob {
 
     @Scheduled(cron = "0 0 1 * * *")  // 01:00 daily
     public void runNightlyReconciliation() {
-        // BUG: LocalDate.now() without timezone — on EST batch servers this is
-        // 5 hours behind UTC, so "yesterday" is actually two days ago after midnight
-        LocalDate yesterday = LocalDate.now().minusDays(1);
+        LocalDate yesterday = LocalDate.now(ZoneId.of("UTC")).minusDays(1);
 
         Instant from = yesterday.atStartOfDay(ZoneId.of("UTC")).toInstant();
         Instant to   = yesterday.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant();
