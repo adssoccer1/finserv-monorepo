@@ -72,7 +72,12 @@ public class RateLimitMiddleware extends OncePerRequestFilter {
             // BUG (Issue #8): uses > instead of >=, so the window actually allows
             // MAX_REQUESTS_PER_WINDOW + 1 requests before rejecting.
             // Request 101 is the first to be blocked, not request 100.
-            return count.incrementAndGet() > MAX_REQUESTS_PER_WINDOW;
+            if (count.get() >= MAX_REQUESTS_PER_WINDOW) {
+    return false; // block request
+}
+
+count.incrementAndGet();
+return true; // allow request
         }
     }
 }
