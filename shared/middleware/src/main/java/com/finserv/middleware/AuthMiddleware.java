@@ -3,6 +3,7 @@ package com.finserv.middleware;
 import com.finserv.utils.ErrorCodes;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,19 +13,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.util.Base64;
 
-/**
- * Validates Bearer tokens on all protected routes.
- *
- * BUG (Issue #12 - medium/security): The JWT parser does not explicitly set
- * a list of allowed signing algorithms. An attacker who controls a token can
- * set alg=none and bypass signature verification entirely.
- *
- * Fix: use .setAllowedClockSkewSeconds() and explicitly specify algorithm
- * via .verifyWith() or setSigningKey() with algorithm enforcement.
- */
 @Component
 @Order(2)
 public class AuthMiddleware extends OncePerRequestFilter {
@@ -54,10 +46,9 @@ public class AuthMiddleware extends OncePerRequestFilter {
         String token = authHeader.substring(BEARER_PREFIX.length());
 
         try {
-            // BUG: parserBuilder() without explicit algorithm enforcement
-            // allows alg=none attack in older JJWT versions
+            SecretKey key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret));
             Claims claims = Jwts.parserBuilder()
-                .setSigningKey(Base64.getDecoder().decode(jwtSecret))
+                .setSigningKey(key)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();

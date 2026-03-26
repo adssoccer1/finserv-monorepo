@@ -61,11 +61,6 @@ public class UserAuthService {
         return AuthResult.success(accessToken, refreshToken, sessionId, user.userId(), user.role());
     }
 
-    /**
-     * BUG (Issue #6): Password change does NOT call sessionManager.invalidateAllSessions().
-     * Existing sessions remain valid after a password change, allowing a compromised
-     * session to continue operating even after the user resets their credentials.
-     */
     public void changePassword(String userId, String currentPassword, String newPassword) {
         UserRecord user = userStore.get(userId);
         if (user == null) throw new IllegalArgumentException("User not found");
@@ -75,7 +70,7 @@ public class UserAuthService {
         String newHash = encoder.encode(newPassword);
         userStore.put(userId, new UserRecord(user.userId(), user.email(),
                                              newHash, user.role(), 0, false));
-        // BUG: sessionManager.invalidateAllSessions(userId) should be called here
+        sessionManager.invalidateAllSessions(userId);
         log.info("Password changed for user {}", userId);
     }
 
