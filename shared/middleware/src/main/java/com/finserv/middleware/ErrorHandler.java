@@ -45,21 +45,13 @@ public class ErrorHandler {
         ));
     }
 
-    /**
-     * BUG: Catches all exceptions and returns e.getMessage() and e.getClass().getName()
-     * in the response body. For internal runtime exceptions this exposes:
-     *  - Internal class names (e.g. "com.finserv.payments.PaymentRepository")
-     *  - SQL fragments from JPA exceptions
-     *  - NullPointerException at com.finserv...
-     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGenericError(Exception e) {
         log.error("Unhandled exception", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-            "code",          ErrorCodes.INTERNAL_ERROR,
-            "message",       e.getMessage(),            // <-- leaks internal error detail
-            "exceptionType", e.getClass().getName(),    // <-- leaks internal class names
-            "timestamp",     Instant.now().toString()
+            "code",      ErrorCodes.INTERNAL_ERROR,
+            "message",   "An internal error occurred. Please try again later.",
+            "timestamp", Instant.now().toString()
         ));
     }
 }

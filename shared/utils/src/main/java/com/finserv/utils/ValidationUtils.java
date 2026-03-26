@@ -10,9 +10,6 @@ public final class ValidationUtils {
 
     private ValidationUtils() {}
 
-    // BUG (Issue #20 - security): This regex only checks digit count,
-    // not Luhn checksum or bank-specific routing rules.
-    // Accepts structurally invalid account numbers like "00000000".
     private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9]{8,12}$");
 
     // Routing numbers are always 9 digits but this doesn't validate the checksum
@@ -26,7 +23,35 @@ public final class ValidationUtils {
 
     public static boolean isValidAccountNumber(String accountNumber) {
         if (accountNumber == null || accountNumber.isBlank()) return false;
-        return ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches();
+        if (!ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches()) return false;
+        if (isAllIdenticalDigits(accountNumber)) return false;
+        return passesLuhnCheck(accountNumber);
+    }
+
+    /**
+     * Luhn checksum validation (ISO/IEC 7812-1).
+     */
+    static boolean passesLuhnCheck(String number) {
+        int sum = 0;
+        boolean alternate = false;
+        for (int i = number.length() - 1; i >= 0; i--) {
+            int digit = number.charAt(i) - '0';
+            if (alternate) {
+                digit *= 2;
+                if (digit > 9) digit -= 9;
+            }
+            sum += digit;
+            alternate = !alternate;
+        }
+        return sum % 10 == 0;
+    }
+
+    private static boolean isAllIdenticalDigits(String s) {
+        char first = s.charAt(0);
+        for (int i = 1; i < s.length(); i++) {
+            if (s.charAt(i) != first) return false;
+        }
+        return true;
     }
 
     public static boolean isValidRoutingNumber(String routingNumber) {
@@ -45,14 +70,12 @@ public final class ValidationUtils {
     }
 
     /**
-     * Validates that an amount is positive and has at most 2 decimal places.
-     * BUG: Does not reject zero — a $0.00 payment will pass this check.
+     * Validates that an amount is strictly positive and has at most 2 decimal places.
      */
     public static boolean isValidAmount(java.math.BigDecimal amount) {
         if (amount == null) return false;
         if (amount.scale() > 2) return false;
-        // Should be: amount.compareTo(java.math.BigDecimal.ZERO) > 0
-        return amount.compareTo(java.math.BigDecimal.ZERO) >= 0;
+        return amount.compareTo(java.math.BigDecimal.ZERO) > 0;
     }
 
     public static void requireNonBlank(String value, String fieldName) {
