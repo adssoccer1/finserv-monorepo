@@ -22,14 +22,11 @@ public final class DateUtils {
     public static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern(ISO_DATE_FORMAT);
 
     /**
-     * BUG (Issue #3): Uses system default timezone instead of UTC.
-     * On servers running in US/Eastern, this returns yesterday's date
-     * after 7 PM ET for UTC timestamps — causing transactions to be
-     * bucketed into the wrong reporting day.
+     * Converts a legacy {@link Date} to a {@link LocalDate} in UTC.
      */
     public static LocalDate toLocalDate(Date date) {
         return date.toInstant()
-                   .atZone(ZoneId.systemDefault())   // should be ZoneId.of("UTC")
+                   .atZone(ZoneId.of("UTC"))
                    .toLocalDate();
     }
 
@@ -64,9 +61,9 @@ public final class DateUtils {
     }
 
     /**
-     * Returns how many calendar days ago the given date was (system timezone).
+     * Returns how many calendar days ago the given date was (UTC).
      */
     public static long daysAgo(LocalDate date) {
-        return LocalDate.now().toEpochDay() - date.toEpochDay();
+        return LocalDate.now(ZoneId.of("UTC")).toEpochDay() - date.toEpochDay();
     }
 }
