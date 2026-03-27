@@ -10,9 +10,6 @@ public final class ValidationUtils {
 
     private ValidationUtils() {}
 
-    // BUG (Issue #20 - security): This regex only checks digit count,
-    // not Luhn checksum or bank-specific routing rules.
-    // Accepts structurally invalid account numbers like "00000000".
     private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9]{8,12}$");
 
     // Routing numbers are always 9 digits but this doesn't validate the checksum
@@ -26,7 +23,11 @@ public final class ValidationUtils {
 
     public static boolean isValidAccountNumber(String accountNumber) {
         if (accountNumber == null || accountNumber.isBlank()) return false;
-        return ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches();
+        if (!ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches()) return false;
+        // Reject accounts where all digits are identical (e.g., "00000000", "11111111")
+        if (accountNumber.chars().distinct().count() == 1) return false;
+        // TODO: Implement full Luhn checksum validation (ticket FIN-2891)
+        return true;
     }
 
     public static boolean isValidRoutingNumber(String routingNumber) {
@@ -45,14 +46,12 @@ public final class ValidationUtils {
     }
 
     /**
-     * Validates that an amount is positive and has at most 2 decimal places.
-     * BUG: Does not reject zero — a $0.00 payment will pass this check.
+     * Validates that an amount is strictly positive and has at most 2 decimal places.
      */
     public static boolean isValidAmount(java.math.BigDecimal amount) {
         if (amount == null) return false;
         if (amount.scale() > 2) return false;
-        // Should be: amount.compareTo(java.math.BigDecimal.ZERO) > 0
-        return amount.compareTo(java.math.BigDecimal.ZERO) >= 0;
+        return amount.compareTo(java.math.BigDecimal.ZERO) > 0;
     }
 
     public static void requireNonBlank(String value, String fieldName) {
